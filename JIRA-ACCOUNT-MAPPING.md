@@ -123,7 +123,7 @@ Apps Script 웹앱은 URL이 하나이므로, REST 경로 대신 **요청 본문
 }
 ```
 
-### 3. 이슈 생성 (구현 완료, 프론트엔드 연동 전)
+### 3. 이슈 생성 (구현 및 프론트엔드 연동 완료)
 
 이 문서의 매핑 확인 범위 밖이지만, 같은 Apps Script 웹앱에 추가된 액션이라 형식을 기록해둡니다. 상세 curl/fetch 예시는 [`backend/README.md`](backend/README.md) 참고.
 
@@ -149,7 +149,7 @@ Apps Script 웹앱은 URL이 하나이므로, REST 경로 대신 **요청 본문
 
 `projectKey`, `summary`는 필수이며 `issueType`을 생략하면 `Task`로 처리됩니다. `description`은 평문 문자열로 보내면 서버가 Jira REST API v3가 요구하는 Atlassian Document Format으로 변환합니다.
 
-> 프론트엔드는 아직 이 액션을 호출하지 않고, 기존 `secure/CreateIssue!default.jspa` 팝업 URL 방식을 사용 중입니다. 이 팝업 방식은 최신 Jira Cloud에서 이슈 생성 폼이 정상적으로 뜨지 않는 문제가 확인되어, 프론트엔드가 이 `createIssue` 액션 호출로 전환하는 작업이 남아 있습니다.
+> 예전에는 `secure/CreateIssue!default.jspa` 팝업 URL 방식을 사용했으나, 최신 Jira Cloud에서 이슈 생성 폼이 정상적으로 뜨지 않는 문제가 확인되어 이 `createIssue` 액션 호출 방식으로 전환 완료했습니다. curl 테스트로 실제 이슈 생성까지 확인했습니다.
 
 ## 프론트엔드가 구현할 부분
 

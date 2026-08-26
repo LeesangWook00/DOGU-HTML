@@ -5,12 +5,10 @@
 ## 배포된 웹앱 URL (프론트엔드 연동용)
 
 ```
-https://script.google.com/macros/s/AKfycbxXLagAQGcfSEPxjgmi7EU-iTpUnHzyFpeWxfAox-zprgWosxt5L7v08a-jxMwrrN-_/exec
+https://script.google.com/macros/s/AKfycbzqFPED7I43kmEct4vUEnNQY_JD2yC8f66EEWNyGN4NLsbT6lzjk2h_PG7sDA5y634b/exec
 ```
 
-`verifyJiraAccount`, `getEmployeeProjects` 두 액션 모두 테스트 Jira 계정으로 정상 동작 확인 완료. 요청/응답 형식은 `../JIRA-ACCOUNT-MAPPING.md` 참고.
-
-`createIssue` 액션은 코드 추가 완료, **재배포 및 curl 테스트 필요** (아래 6번 참고).
+`verifyJiraAccount`, `getEmployeeProjects`, `createIssue` 세 액션 모두 테스트 Jira 계정으로 정상 동작 확인 완료 (curl 테스트로 실제 이슈 생성까지 확인). 요청/응답 형식은 `../JIRA-ACCOUNT-MAPPING.md` 참고.
 
 ## 파일
 
