@@ -1,6 +1,6 @@
 # backend (Jira 연동 중계 - Google Apps Script)
 
-전용 서버 없이 **Google Apps Script 웹앱**으로 Jira API를 대신 호출하는 백엔드입니다. 설계 배경은 [`../JIRA-ACCOUNT-MAPPING.md`](../JIRA-ACCOUNT-MAPPING.md) 참고.
+전용 서버 없이 **Google Apps Script 웹앱**으로 Jira API를 대신 호출하는 백엔드입니다. 설계 배경은 [`../JIRA-ACCOUNT-MAPPING.md`](../JIRA-ACCOUNT-MAPPING.md), 완료 업무 가져오기 계약은 [`../JIRA-COMPLETED-WORK-IMPORT.md`](../JIRA-COMPLETED-WORK-IMPORT.md) 참고.
 
 ## 배포된 웹앱 URL (프론트엔드 연동용)
 
@@ -36,6 +36,9 @@ Apps Script 편집기 좌측 **프로젝트 설정(톱니바퀴)** → **스크�
 | `JIRA_BASE_URL` | 예: `https://회사명.atlassian.net` |
 | `JIRA_EMAIL` | 1번에서 토큰을 발급한 계정 이메일 |
 | `JIRA_API_TOKEN` | 1번에서 복사한 토큰 값 |
+| `JIRA_START_DATE_FIELD_ID` | (선택) 시작 날짜로 쓸 커스텀 필드 ID, 예: `customfield_10015`. 미설정 시 `startDate`는 항상 빈 문자열로 반환됩니다. |
+
+`JIRA_START_DATE_FIELD_ID`는 Jira 프로젝트마다 다릅니다. 이슈 화면에서 시작 날짜 필드를 우클릭하거나, `GET /rest/api/3/field`로 필드 목록을 조회해 이름이 "시작일/Start date"인 필드의 `id` 값을 넣습니다.
 
 ### 4. 웹앱으로 배포
 
@@ -67,12 +70,12 @@ curl -X POST "<웹앱 URL>" \
 { "ok": true, "matched": true, "candidates": [ { "jiraAccountId": "...", "displayName": "...", "email": "..." } ] }
 ```
 
-`jiraAccountId`를 복사해서 두 번째 액션도 확인합니다.
+`jiraAccountId`를 복사해서 두 번째 액션도 확인합니다. `statusCategory: "done"`을 보내면 완료 상태 이슈만, `description`/`subtasks`/`linkedIssues`/`startDate`/`dueDate` 등 상세 필드까지 함께 반환합니다 (형식은 `../JIRA-COMPLETED-WORK-IMPORT.md` 참고).
 
 ```bash
 curl -X POST "<웹앱 URL>" \
   -H "Content-Type: text/plain;charset=utf-8" \
-  -d '{"action":"getEmployeeProjects","jiraAccountId":"위에서 나온 accountId"}'
+  -d '{"action":"getEmployeeProjects","jiraAccountId":"위에서 나온 accountId","statusCategory":"done"}'
 ```
 
 세 번째 액션(`createIssue`)도 확인합니다. `projectKey`, `summary`는 필수이고, `issueType`을 생략하면 `Task`로 처리됩니다.

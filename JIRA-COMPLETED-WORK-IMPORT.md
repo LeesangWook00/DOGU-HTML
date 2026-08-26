@@ -134,17 +134,13 @@ assignee = "<jiraAccountId>" AND statusCategory = Done ORDER BY resolved DESC, u
 - 평가 문서가 잠겨 카드를 추가할 수 없으면 반영된 건수와 실패 이유를 오류 팝업으로 표시합니다.
 - 시작 날짜나 기한이 응답에 없으면 모달의 날짜 입력란에서 사용자가 직접 지정할 수 있습니다.
 
-## 현재 백엔드 응답의 제한
+## 백엔드 구현 상태
 
-현재 저장소의 `backend/jira-relay.gs`는 `getEmployeeProjects` 조회 시 `summary`, `status`, `project`만 요청합니다. 따라서 프론트엔드만으로는 Jira에 저장된 시작 날짜·기한·설명·하위 작업·연결된 업무를 자동으로 알아낼 수 없습니다.
+`backend/jira-relay.gs`의 `getEmployeeProjects`가 이 문서의 확장 응답을 구현 완료했습니다 (`statusCategoryKey`, `isDone`, `startDate`, `dueDate`, `descriptionText`, `subtasks`, `linkedIssues` 모두 반환).
 
-이번 프론트엔드 구현은 다음 방식으로 동작합니다.
-
-- 백엔드가 날짜를 반환하면 기간 입력란에 자동 반영합니다.
-- 날짜가 반환되지 않으면 Jira 연동 모달에서 사용자가 시작 날짜와 기한을 직접 지정할 수 있습니다.
-- 백엔드가 이 문서의 확장 응답을 구현하면 HTML을 다시 변경하지 않아도 날짜와 상세 내용이 자동으로 채워집니다.
-
-Jira에 저장된 기간을 **완전히 자동으로** 가져오려면 백엔드가 `duedate`와 실제 시작 날짜 커스텀 필드를 응답에 포함해야 합니다. 이 작업은 프론트엔드만으로 우회할 수 없습니다.
+- `dueDate`는 Jira 기본 필드(`duedate`)라 별도 설정 없이 자동으로 채워집니다.
+- `startDate`는 사이트마다 커스텀 필드 ID가 달라서, Apps Script 스크립트 속성에 `JIRA_START_DATE_FIELD_ID`를 설정해야 자동으로 채워집니다 (`backend/README.md` 참고). 설정 전에는 `startDate: ""`로 반환되어 프론트엔드 모달에서 사용자가 직접 입력하는 기존 동작으로 자연스럽게 폴백됩니다.
+- `descriptionText`, `subtasks`, `linkedIssues`는 별도 설정 없이 항상 채워집니다.
 
 ### 설명
 
@@ -233,7 +229,7 @@ Jira 작업을 진행할 수 없는 오류는 상단 상태 문구에만 표시�
 - 상단 **Jira 연동**은 저장된 매핑이 없을 때 계정 확인부터 자동으로 이어서 실행합니다.
 - 오류 메시지는 모드 표시와 섞이지 않도록 구분하고 별도 오류 팝업으로 제공합니다.
 
-다만 설명·하위 작업·연결된 업무를 모두 표시하려면 이 문서의 확장 응답을 백엔드가 구현해야 합니다.
+설명·하위 작업·연결된 업무 확장 응답은 백엔드에 구현 완료되어, 배포된 웹앱 URL을 최신 버전으로 재배포하면 별도 프론트엔드 변경 없이 자동으로 채워집니다.
 
 ## 완료 기준
 
