@@ -351,8 +351,8 @@
       <button class="btn" id="btnTopLocalLoad">임시저장 불러오기</button>
       <button class="btn" id="btnTopJsonImport">JSON 불러오기</button>
       <button class="btn primary" id="btnTopJsonExport">JSON 내보내기</button>
-      <button class="btn primary" id="btnJiraCreateIssue" type="button">Jira 이슈 생성</button>
-      <span id="jiraTopStatus" style="font-size:12px;color:#6b7280;align-self:center;"></span>
+      <button class="btn primary" id="btnJiraImportIssues" type="button">Jira 연동</button>
+      <span id="jiraTopStatus" role="status" aria-live="polite" style="font-size:12px;color:#6b7280;align-self:center;margin-right:8px;"></span>
       <button class="btn" id="btnHrToggle" data-hr-only="1" type="button" onclick="try{openHrModal();}catch(e){alert(String(e));}">HR 설정</button>
       <span id="modeBadge" style="font-size:12px;color:#374151;margin-left:6px;align-self:center;">MODE: employee</span>
       <button class="btn danger" id="btnTopReset">리셋(초기화)</button>
@@ -4839,41 +4839,62 @@ init();
 
 })();
 </script>
-<section id="jiraIntegration" class="card" style="margin:14px auto; max-width:1100px;">
-  <div class="hd">
-    <div class="k">
-      <div class="part"><span class="badge">Jira</span></div>
-      <h2>Jira 연동</h2>
-      <p class="desc">Jira 중계 서버를 통해 담당 업무를 불러오거나 평가 이슈를 바로 생성합니다.</p>
+<div class="modalBackdrop" id="jiraIntegrationModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="jiraIntegrationModalTitle" style="width:min(1120px, 100%);">
+    <div class="modalHd">
+      <div>
+        <div class="part"><span class="badge">Jira</span></div>
+        <h3 id="jiraIntegrationModalTitle" style="margin-top:6px;">Jira 연동</h3>
+        <div class="hint" style="margin-top:6px;">완료된 Jira 업무를 선택해 DOGU 프로젝트/업무 카드에 가져옵니다.</div>
+      </div>
+      <button type="button" class="btn" id="btnCloseJiraIntegrationModal">닫기</button>
+    </div>
+    <div class="modalBd">
+      <section id="jiraIntegration">
+        <div class="callout" style="margin:0 0 14px;">
+          <div class="t">완료 업무 가져오기</div>
+          <div class="hint">사내 이메일로 Jira 계정을 확인한 뒤, 가져올 업무만 체크해 주세요. 날짜가 조회되지 않으면 이 화면에서 직접 지정할 수 있습니다.</div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <button type="button" class="btn" id="btnJiraClearSettings">연동 설정 지우기</button>
+          <button type="button" class="btn" id="btnJiraVerifyAccount">지라 계정 확인</button>
+          <button type="button" class="btn primary" id="btnJiraLoadProjects" disabled>완료 업무 조회</button>
+          <span class="hint" id="jiraIntegrationStatus" style="margin:8px 0 0;"></span>
+        </div>
+        <div id="jiraAccountResult" class="hint" style="margin-top:10px;"></div>
+        <div id="jiraProjectResults" style="margin-top:10px;" role="region" aria-label="가져온 Jira 업무" aria-live="polite"></div>
+        <div id="jiraSelectionActions" style="display:none; gap:8px; flex-wrap:wrap; justify-content:flex-end; align-items:center; margin-top:14px; padding-top:14px; border-top:1px solid var(--line);">
+          <span class="hint" id="jiraSelectedCount" style="margin-right:auto;">선택 0건</span>
+          <button type="button" class="btn" id="btnJiraSelectAll">전체 선택</button>
+          <button type="button" class="btn primary" id="btnJiraApplySelected" disabled>선택한 업무 HTML에 가져오기</button>
+        </div>
+
+        <details style="margin-top:18px; border:1px solid var(--line); border-radius:14px; padding:12px 14px; background:#f8fafc;">
+          <summary style="cursor:pointer; font-weight:800;">새 Jira 이슈 생성</summary>
+          <div class="grid" style="margin-top:12px;">
+            <div class="col-3">
+              <label for="jiraProjectKey">프로젝트 키<span class="req">*</span></label>
+              <input type="text" id="jiraProjectKey" placeholder="HR" autocomplete="off" />
+            </div>
+            <div class="col-3">
+              <label for="jiraIssueType">이슈 유형</label>
+              <input type="text" id="jiraIssueType" value="Task" autocomplete="off" />
+            </div>
+            <div class="col-12">
+              <label for="jiraSummary">이슈 제목</label>
+              <input type="text" id="jiraSummary" placeholder="비워두면 성명과 팀으로 자동 생성됩니다." autocomplete="off" />
+            </div>
+          </div>
+          <div class="hint">이슈는 새 창을 열지 않고 바로 생성됩니다. API 토큰은 이 페이지에 저장되지 않습니다.</div>
+          <div style="display:flex; justify-content:flex-end; margin-top:12px;">
+            <button type="button" class="btn primary" id="btnJiraCreateIssue">Jira 이슈 생성</button>
+          </div>
+          <div id="jiraCreateResult" class="hint" style="margin-top:10px;" role="status" aria-live="polite"></div>
+        </details>
+      </section>
     </div>
   </div>
-  <div class="bd">
-    <div class="grid">
-      <div class="col-3">
-        <label for="jiraProjectKey">프로젝트 키<span class="req">*</span></label>
-        <input type="text" id="jiraProjectKey" placeholder="HR" autocomplete="off" />
-      </div>
-      <div class="col-3">
-        <label for="jiraIssueType">이슈 유형</label>
-        <input type="text" id="jiraIssueType" value="Task" autocomplete="off" />
-      </div>
-      <div class="col-12">
-        <label for="jiraSummary">이슈 제목</label>
-        <input type="text" id="jiraSummary" placeholder="비워두면 성명과 팀으로 자동 생성됩니다." autocomplete="off" />
-      </div>
-    </div>
-    <div class="hint">이슈는 새 창을 열지 않고 바로 생성됩니다. API 토큰은 이 페이지에 저장되지 않습니다.</div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
-      <button type="button" class="btn" id="btnJiraClearSettings">연동 설정 지우기</button>
-      <button type="button" class="btn" id="btnJiraVerifyAccount">지라 계정 확인</button>
-      <button type="button" class="btn primary" id="btnJiraLoadProjects" disabled>프로젝트 불러오기</button>
-      <span class="hint" id="jiraIntegrationStatus" style="margin:8px 0 0;"></span>
-    </div>
-    <div id="jiraAccountResult" class="hint" style="margin-top:10px;"></div>
-    <div id="jiraProjectResults" style="margin-top:10px;"></div>
-    <div id="jiraCreateResult" class="hint" style="margin-top:10px;" role="status" aria-live="polite"></div>
-  </div>
-</section>
+</div>
 <div class="modalBackdrop" id="jiraAccountModal" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="jiraAccountModalTitle" style="width:min(520px, 100%);">
     <div class="modalHd">
@@ -4884,6 +4905,20 @@ init();
       <button type="button" class="btn" id="btnCloseJiraAccountModal">닫기</button>
     </div>
     <div class="modalBd" id="jiraAccountCandidates"></div>
+  </div>
+</div>
+<div class="modalBackdrop" id="jiraErrorModal" aria-hidden="true">
+  <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="jiraErrorModalTitle" aria-describedby="jiraErrorModalMessage" style="width:min(460px, 100%);">
+    <div class="modalHd">
+      <h3 id="jiraErrorModalTitle">Jira 연동 오류</h3>
+      <button type="button" class="btn" id="btnCloseJiraErrorModal">닫기</button>
+    </div>
+    <div class="modalBd">
+      <p id="jiraErrorModalMessage" style="margin:0; white-space:pre-wrap; line-height:1.6;"></p>
+      <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+        <button type="button" class="btn primary" id="btnConfirmJiraErrorModal">확인</button>
+      </div>
+    </div>
   </div>
 </div>
 <script>
@@ -4898,6 +4933,7 @@ init();
   const emailInput = getJiraElement("jiraEmployeeEmail");
   const verifyButton = getJiraElement("btnJiraVerifyAccount");
   const loadProjectsButton = getJiraElement("btnJiraLoadProjects");
+  const importIssuesButton = getJiraElement("btnJiraImportIssues");
   const createIssueButton = getJiraElement("btnJiraCreateIssue");
   const clearSettingsButton = getJiraElement("btnJiraClearSettings");
   const jiraProjectKey = getJiraElement("jiraProjectKey");
@@ -4912,8 +4948,20 @@ init();
   const accountModalDescription = getJiraElement("jiraAccountModalDescription");
   const accountCandidates = getJiraElement("jiraAccountCandidates");
   const closeAccountModalButton = getJiraElement("btnCloseJiraAccountModal");
+  const integrationModal = getJiraElement("jiraIntegrationModal");
+  const closeIntegrationModalButton = getJiraElement("btnCloseJiraIntegrationModal");
+  const selectionActions = getJiraElement("jiraSelectionActions");
+  const selectedCount = getJiraElement("jiraSelectedCount");
+  const selectAllButton = getJiraElement("btnJiraSelectAll");
+  const applySelectedButton = getJiraElement("btnJiraApplySelected");
+  const errorModal = getJiraElement("jiraErrorModal");
+  const errorModalMessage = getJiraElement("jiraErrorModalMessage");
+  const closeErrorModalButton = getJiraElement("btnCloseJiraErrorModal");
+  const confirmErrorModalButton = getJiraElement("btnConfirmJiraErrorModal");
+  let pendingImportAfterAccountConfirmation = false;
+  const loadedJiraIssues = new Map();
 
-  if(!emailInput || !verifyButton || !loadProjectsButton || !createIssueButton || !clearSettingsButton) return;
+  if(!emailInput || !verifyButton || !loadProjectsButton || !importIssuesButton || !createIssueButton || !clearSettingsButton || !integrationModal || !selectionActions || !applySelectedButton || !errorModal) return;
 
   function setStatus(message, color){
     const statusColor = color || "var(--muted)";
@@ -4922,9 +4970,34 @@ init();
       status.style.color = statusColor;
     }
     if(topStatus){
-      topStatus.textContent = message;
+      topStatus.textContent = message ? `${message} ·` : "";
       topStatus.style.color = statusColor;
     }
+  }
+
+  function closeJiraError(){
+    errorModal.style.display = "none";
+    errorModal.setAttribute("aria-hidden", "true");
+  }
+
+  function showJiraError(message){
+    setStatus(message, "var(--danger)");
+    errorModalMessage.textContent = message;
+    errorModal.style.display = "flex";
+    errorModal.setAttribute("aria-hidden", "false");
+    confirmErrorModalButton.focus();
+  }
+
+  function openJiraIntegration(){
+    integrationModal.style.display = "flex";
+    integrationModal.setAttribute("aria-hidden", "false");
+    closeIntegrationModalButton.focus();
+  }
+
+  function closeJiraIntegration(){
+    integrationModal.style.display = "none";
+    integrationModal.setAttribute("aria-hidden", "true");
+    importIssuesButton.focus();
   }
 
   function errorMessage(error, task){
@@ -4988,10 +5061,11 @@ init();
     accountResult.textContent = `지라 연동됨: ${mapping.jiraDisplayName} (${mapping.email})`;
   }
 
-  function closeAccountModal(){
+  function closeAccountModal(cancelPendingImport){
     accountModal.style.display = "none";
     accountModal.setAttribute("aria-hidden", "true");
     accountCandidates.replaceChildren();
+    if(cancelPendingImport !== false) pendingImportAfterAccountConfirmation = false;
   }
 
   function connectCandidate(candidate, email){
@@ -5002,8 +5076,11 @@ init();
     };
     localStorage.setItem(jiraMappingKey, JSON.stringify(mapping));
     updateAccountUI(mapping);
-    closeAccountModal();
+    const shouldImport = pendingImportAfterAccountConfirmation;
+    pendingImportAfterAccountConfirmation = false;
+    closeAccountModal(false);
     setStatus("지라 계정 확인 완료", "var(--ok)");
+    if(shouldImport) loadJiraIssues(true);
   }
 
   function openCandidateModal(candidates, email){
@@ -5039,14 +5116,17 @@ init();
     accountCandidates.querySelector("button")?.focus();
   }
 
-  verifyButton.addEventListener("click", async function(){
+  async function verifyJiraAccount(continueWithImport){
     const email = emailInput.value.trim();
     if(!emailInput.checkValidity() || !email){
-      setStatus("지라 계정 확인 실패: 올바른 사내 이메일을 입력해 주세요.", "var(--danger)");
-      emailInput.reportValidity();
+      pendingImportAfterAccountConfirmation = false;
+      showJiraError("올바른 사내 이메일을 입력해 주세요.");
+      getJiraElement("cardBasic")?.scrollIntoView({ behavior:"smooth", block:"center" });
+      emailInput.focus();
       return;
     }
 
+    pendingImportAfterAccountConfirmation = !!continueWithImport;
     verifyButton.disabled = true;
     setStatus("지라 계정 확인 중...", "var(--muted)");
     try{
@@ -5055,90 +5135,346 @@ init();
       if(!result.matched || !candidates.length){
         localStorage.removeItem(jiraMappingKey);
         updateAccountUI(null);
-        setStatus("지라 계정을 찾을 수 없습니다. HR에 문의하세요.", "var(--danger)");
+        pendingImportAfterAccountConfirmation = false;
+        showJiraError("입력한 이메일과 일치하는 Jira 계정을 찾을 수 없습니다.\n이메일을 확인하거나 HR에 문의해 주세요.");
         return;
       }
       openCandidateModal(candidates, email);
       setStatus("검색된 Jira 계정을 확인해 주세요.", "var(--muted)");
     }catch(error){
-      setStatus(`지라 계정 확인 실패: ${errorMessage(error, "계정 확인")}`, "var(--danger)");
+      pendingImportAfterAccountConfirmation = false;
+      showJiraError(`지라 계정 확인 실패\n${errorMessage(error, "계정 확인")}`);
     }finally{
       verifyButton.disabled = false;
     }
-  });
-
-  function applyIssueToProject(issue, index){
-    const title = document.querySelector(`#projectList input[data-field="title"][data-idx="${index}"]`);
-    const summary = document.querySelector(`#projectList textarea[data-field="summary"][data-idx="${index}"]`);
-    if(title){
-      title.value = `${issue.issueKey} - ${issue.summary || ""}`.trim();
-      title.dispatchEvent(new Event("input", { bubbles:true }));
-    }
-    if(summary){
-      summary.value = `상태: ${issue.status || "미정"}\nJira: ${issue.url || ""}`;
-      summary.dispatchEvent(new Event("input", { bubbles:true }));
-    }
-    setStatus(`${issue.issueKey} 이슈를 프로젝트/업무 ${index + 1}에 반영했습니다.`, "var(--ok)");
   }
 
-  loadProjectsButton.addEventListener("click", async function(){
+  verifyButton.addEventListener("click", ()=>verifyJiraAccount(false));
+
+  function isCompletedJiraIssue(issue){
+    if(issue && issue.isDone === true) return true;
+    const categoryKey = String(
+      (issue && issue.statusCategoryKey)
+      || (issue && issue.statusCategory && issue.statusCategory.key)
+      || ""
+    ).trim().toLowerCase();
+    if(categoryKey) return categoryKey === "done";
+
+    const statusName = String((issue && issue.status) || "").trim().toLowerCase();
+    return ["done", "resolved", "closed", "complete", "completed", "해결됨", "완료"].includes(statusName);
+  }
+
+  function normalizeJiraDate(value){
+    const text = String(value || "").trim();
+    const match = text.match(/^(\d{4})[-./년\s]+(\d{1,2})[-./월\s]+(\d{1,2})/);
+    if(!match) return "";
+    return `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}`;
+  }
+
+  function getJiraStartDate(issue){
+    const fields = issue && issue.fields ? issue.fields : {};
+    return normalizeJiraDate(
+      (issue && (issue.startDate || issue.startdate || issue.start_date))
+      || fields.startDate
+      || fields.startdate
+      || fields.customfield_10015
+      || ""
+    );
+  }
+
+  function getJiraDueDate(issue){
+    const fields = issue && issue.fields ? issue.fields : {};
+    return normalizeJiraDate(
+      (issue && (issue.dueDate || issue.duedate || issue.due_date))
+      || fields.dueDate
+      || fields.duedate
+      || ""
+    );
+  }
+
+  function formatJiraDate(value){
+    const normalized = normalizeJiraDate(value);
+    return normalized ? normalized.replaceAll("-", ".") : "";
+  }
+
+  function getJiraIssuePeriod(issue){
+    if(issue && issue.period) return String(issue.period).trim();
+    const startDate = formatJiraDate(getJiraStartDate(issue));
+    const dueDate = formatJiraDate(getJiraDueDate(issue));
+    if(startDate && dueDate) return `${startDate} ~ ${dueDate}`;
+    if(startDate) return `${startDate} ~`;
+    if(dueDate) return `~ ${dueDate}`;
+    return "";
+  }
+
+  function jiraChildLine(item, includeRelationship){
+    const relationship = includeRelationship && item.relationship
+      ? `${item.relationship}: `
+      : "";
+    const key = item.issueKey || item.key || "키 없음";
+    const title = item.summary || "제목 없음";
+    const itemStatus = item.status ? ` (${item.status})` : "";
+    return `- ${relationship}${key} · ${title}${itemStatus}`;
+  }
+
+  function buildJiraWorkSummary(issue){
+    const sections = [];
+    const description = String(issue.descriptionText || issue.description || "").trim();
+    const subtasks = Array.isArray(issue.subtasks) ? issue.subtasks : [];
+    const linkedIssues = Array.isArray(issue.linkedIssues)
+      ? issue.linkedIssues
+      : (Array.isArray(issue.linkedWorkItems) ? issue.linkedWorkItems : []);
+
+    if(description) sections.push(`[설명]\n${description}`);
+    if(subtasks.length){
+      sections.push(`[하위 작업]\n${subtasks.map(item=>jiraChildLine(item, false)).join("\n")}`);
+    }
+    if(linkedIssues.length){
+      sections.push(`[연결된 업무 항목]\n${linkedIssues.map(item=>jiraChildLine(item, true)).join("\n")}`);
+    }
+    if(!sections.length){
+      sections.push("[Jira 상세 정보]\n설명, 하위 작업, 연결된 업무 항목이 없습니다.");
+    }
+    return sections.join("\n\n");
+  }
+
+  function applyIssueToProject(issue, index, options){
+    const title = document.querySelector(`#projectList input[data-field="title"][data-idx="${index}"]`);
+    const period = document.querySelector(`#projectList input[data-field="period"][data-idx="${index}"]`);
+    const summary = document.querySelector(`#projectList textarea[data-field="summary"][data-idx="${index}"]`);
+    if(title){
+      title.value = String(issue.summary || "").trim();
+      title.dispatchEvent(new Event("input", { bubbles:true }));
+    }
+    const jiraPeriod = getJiraIssuePeriod(issue);
+    if(period && jiraPeriod){
+      period.value = jiraPeriod;
+      period.dispatchEvent(new Event("input", { bubbles:true }));
+    }
+    if(summary){
+      summary.value = buildJiraWorkSummary(issue);
+      summary.dispatchEvent(new Event("input", { bubbles:true }));
+    }
+    if(!options || options.scroll !== false){
+      document.querySelector(`#projectList input[data-field="title"][data-idx="${index}"]`)
+        ?.scrollIntoView({ behavior:"smooth", block:"center" });
+    }
+    if(!options || options.silent !== true){
+      setStatus(`${issue.issueKey} 완료 업무를 프로젝트/업무 ${index + 1}에 채웠습니다.`, "var(--ok)");
+    }
+  }
+
+  function findOrCreateEmptyProjectIndex(){
+    let empty = Array.from(document.querySelectorAll('#projectList input[data-field="title"]'))
+      .find(input=>!input.value.trim());
+    if(!empty){
+      const addProjectButton = getJiraElement("btnAddProject");
+      if(addProjectButton && !addProjectButton.disabled){
+        addProjectButton.click();
+        empty = Array.from(document.querySelectorAll('#projectList input[data-field="title"]'))
+          .find(input=>!input.value.trim());
+      }
+    }
+    return empty ? Number(empty.dataset.idx) : null;
+  }
+
+  function updateJiraSelectionUI(){
+    const checkboxes = Array.from(projectResults.querySelectorAll(".jiraIssueCheckbox"));
+    const selected = checkboxes.filter(checkbox=>checkbox.checked);
+    selectedCount.textContent = `선택 ${selected.length}건`;
+    applySelectedButton.disabled = selected.length === 0;
+    selectAllButton.textContent = checkboxes.length > 0 && selected.length === checkboxes.length
+      ? "전체 해제"
+      : "전체 선택";
+  }
+
+  function applySelectedJiraIssues(){
+    const selected = Array.from(projectResults.querySelectorAll(".jiraIssueCheckbox:checked"));
+    if(!selected.length){
+      showJiraError("HTML에 가져올 Jira 업무를 선택해 주세요.");
+      return;
+    }
+
+    let appliedCount = 0;
+    for(const checkbox of selected){
+      const issue = loadedJiraIssues.get(checkbox.value);
+      if(!issue) continue;
+      const row = checkbox.closest(".jiraIssueRow");
+      const startDate = row?.querySelector('[data-jira-date="start"]')?.value || getJiraStartDate(issue);
+      const dueDate = row?.querySelector('[data-jira-date="due"]')?.value || getJiraDueDate(issue);
+      const projectIndex = findOrCreateEmptyProjectIndex();
+      if(projectIndex == null){
+        showJiraError(`선택한 ${selected.length}건 중 ${appliedCount}건만 반영했습니다.\n추가 프로젝트/업무 입력란을 만들 수 없습니다.`);
+        return;
+      }
+      applyIssueToProject({ ...issue, startDate, dueDate }, projectIndex, { scroll:false, silent:true });
+      appliedCount += 1;
+    }
+
+    setStatus(`${appliedCount}개의 선택한 Jira 업무를 HTML에 가져왔습니다.`, "var(--ok)");
+    closeJiraIntegration();
+    getJiraElement("projectList")?.scrollIntoView({ behavior:"smooth", block:"start" });
+  }
+
+  async function loadJiraIssues(scrollToResults){
     const mapping = getMapping();
     if(!mapping){
-      setStatus("먼저 지라 계정을 확인해 주세요.", "var(--danger)");
+      await verifyJiraAccount(true);
       return;
     }
 
     loadProjectsButton.disabled = true;
-    setStatus("담당 Jira 프로젝트를 불러오는 중...", "var(--muted)");
+    importIssuesButton.disabled = true;
+    const importButtonLabel = importIssuesButton.textContent;
+    const loadButtonLabel = loadProjectsButton.textContent;
+    importIssuesButton.textContent = "Jira 업무 가져오는 중...";
+    loadProjectsButton.textContent = "가져오는 중...";
+    setStatus("담당 Jira 업무를 가져오는 중...", "var(--muted)");
     projectResults.replaceChildren();
+    loadedJiraIssues.clear();
+    selectionActions.style.display = "none";
+    if(scrollToResults){
+      getJiraElement("jiraIntegration")?.scrollIntoView({ behavior:"smooth", block:"start" });
+    }
     try{
-      const result = await requestRelay("getEmployeeProjects", { jiraAccountId: mapping.jiraAccountId });
-      const issues = Array.isArray(result.issues) ? result.issues : [];
+      const result = await requestRelay("getEmployeeProjects", {
+        jiraAccountId: mapping.jiraAccountId,
+        statusCategory: "done",
+        includeDetails: true
+      });
+      const receivedIssues = Array.isArray(result.issues) ? result.issues : [];
+      const issues = receivedIssues.filter(isCompletedJiraIssue);
       if(!issues.length){
-        projectResults.textContent = "담당 Jira 프로젝트가 없습니다.";
-        setStatus("조회 완료: 담당 프로젝트 없음", "var(--muted)");
+        projectResults.textContent = "가져올 완료 상태의 Jira 업무가 없습니다.";
+        setStatus("가져오기 완료: 완료된 담당 Jira 업무 없음", "var(--muted)");
         return;
       }
 
       const heading = document.createElement("div");
       heading.className = "hint";
-      heading.textContent = "담당 Jira 업무를 선택하면 빈 프로젝트 입력란에 반영됩니다.";
+      const headingTitle = document.createElement("b");
+      headingTitle.textContent = `완료된 Jira 업무 ${issues.length}건`;
+      heading.append(headingTitle, " · 원하는 업무를 선택하면 프로젝트/업무명, 기간, 업무 요약에 반영됩니다.");
       projectResults.appendChild(heading);
       issues.forEach(issue=>{
         const row = document.createElement("div");
-        row.className = "row";
+        row.className = "row jiraIssueRow";
         row.style.marginTop = "8px";
+        row.style.alignItems = "flex-start";
+        loadedJiraIssues.set(issue.issueKey, issue);
+
+        const selectLabel = document.createElement("label");
+        selectLabel.style.display = "inline-flex";
+        selectLabel.style.alignItems = "center";
+        selectLabel.style.gap = "7px";
+        selectLabel.style.padding = "8px 10px";
+        selectLabel.style.border = "1px solid var(--line)";
+        selectLabel.style.borderRadius = "10px";
+        selectLabel.style.background = "#fff";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "jiraIssueCheckbox";
+        checkbox.value = issue.issueKey;
+        checkbox.addEventListener("change", updateJiraSelectionUI);
+        selectLabel.append(checkbox, "선택");
 
         const issueInfo = document.createElement("div");
+        issueInfo.style.flex = "1";
         const issueTitle = document.createElement("div");
         const issueKey = document.createElement("b");
         issueKey.textContent = issue.issueKey || "키 없음";
         issueTitle.append(issueKey, ` ${issue.summary || ""}`);
         const issueStatus = document.createElement("div");
         issueStatus.className = "hint";
-        issueStatus.textContent = `상태: ${issue.status || "미정"}`;
-        issueInfo.append(issueTitle, issueStatus);
+        issueStatus.textContent = `프로젝트: ${issue.projectKey || "미정"} · 상태: ${issue.status || "미정"}`;
+        const issuePeriod = document.createElement("div");
+        issuePeriod.className = "hint";
+        const periodText = getJiraIssuePeriod(issue);
+        issuePeriod.textContent = periodText
+          ? `기간: ${periodText}`
+          : "기간: Jira에 시작일·기한 없음 (HTML에서 직접 입력)";
+        const detailCounts = document.createElement("div");
+        detailCounts.className = "hint";
+        const subtaskCount = Array.isArray(issue.subtasks) ? issue.subtasks.length : 0;
+        const linkedCount = Array.isArray(issue.linkedIssues)
+          ? issue.linkedIssues.length
+          : (Array.isArray(issue.linkedWorkItems) ? issue.linkedWorkItems.length : 0);
+        detailCounts.textContent = `설명: ${issue.descriptionText || issue.description ? "있음" : "없음"} · 하위 작업: ${subtaskCount}건 · 연결된 업무: ${linkedCount}건`;
+        issueInfo.append(issueTitle, issueStatus, issuePeriod, detailCounts);
 
-        const applyButton = document.createElement("button");
-        applyButton.type = "button";
-        applyButton.className = "btn small primary";
-        applyButton.textContent = "프로젝트에 반영";
-        applyButton.addEventListener("click", ()=>{
-          const empty = Array.from(document.querySelectorAll('#projectList input[data-field="title"]'))
-            .find(input=>!input.value.trim());
-          const index = empty ? Number(empty.dataset.idx) : 0;
-          applyIssueToProject(issue, index);
-        });
-        row.append(issueInfo, applyButton);
+        const dateEditor = document.createElement("div");
+        dateEditor.className = "grid";
+        dateEditor.style.marginTop = "10px";
+        const startDateWrap = document.createElement("div");
+        startDateWrap.className = "col-6";
+        const startDateLabel = document.createElement("label");
+        startDateLabel.textContent = "시작 날짜";
+        const startDateInput = document.createElement("input");
+        startDateInput.type = "date";
+        startDateInput.dataset.jiraDate = "start";
+        startDateInput.value = getJiraStartDate(issue);
+        startDateWrap.append(startDateLabel, startDateInput);
+        const dueDateWrap = document.createElement("div");
+        dueDateWrap.className = "col-6";
+        const dueDateLabel = document.createElement("label");
+        dueDateLabel.textContent = "기한";
+        const dueDateInput = document.createElement("input");
+        dueDateInput.type = "date";
+        dueDateInput.dataset.jiraDate = "due";
+        dueDateInput.value = getJiraDueDate(issue);
+        dueDateWrap.append(dueDateLabel, dueDateInput);
+        dateEditor.append(startDateWrap, dueDateWrap);
+        issueInfo.appendChild(dateEditor);
+
+        if(issue.url){
+          try{
+            const issueUrl = new URL(issue.url);
+            if(issueUrl.protocol === "https:"){
+              const issueLink = document.createElement("a");
+              issueLink.href = issueUrl.href;
+              issueLink.target = "_blank";
+              issueLink.rel = "noopener noreferrer";
+              issueLink.textContent = "Jira에서 보기";
+              issueLink.className = "hint";
+              issueInfo.appendChild(issueLink);
+            }
+          }catch(_){
+            // 잘못된 URL은 링크로 표시하지 않습니다.
+          }
+        }
+
+        row.append(selectLabel, issueInfo);
         projectResults.appendChild(row);
       });
-      setStatus(`${issues.length}개의 Jira 업무를 불러왔습니다.`, "var(--ok)");
+      selectionActions.style.display = "flex";
+      updateJiraSelectionUI();
+      const excludedCount = receivedIssues.length - issues.length;
+      setStatus(
+        `${issues.length}개의 완료 Jira 업무를 가져왔습니다.${excludedCount > 0 ? ` 미완료 ${excludedCount}건은 제외했습니다.` : ""}`,
+        "var(--ok)"
+      );
     }catch(error){
-      setStatus(`프로젝트 조회 실패: ${errorMessage(error, "프로젝트 조회")}`, "var(--danger)");
+      showJiraError(`Jira 업무 가져오기 실패\n${errorMessage(error, "업무 조회")}`);
     }finally{
       loadProjectsButton.disabled = !getMapping();
+      importIssuesButton.disabled = false;
+      importIssuesButton.textContent = importButtonLabel;
+      loadProjectsButton.textContent = loadButtonLabel;
     }
+  }
+
+  loadProjectsButton.addEventListener("click", ()=>loadJiraIssues(false));
+  importIssuesButton.addEventListener("click", ()=>{
+    openJiraIntegration();
+    loadJiraIssues(false);
   });
+  selectAllButton.addEventListener("click", ()=>{
+    const checkboxes = Array.from(projectResults.querySelectorAll(".jiraIssueCheckbox"));
+    const shouldSelectAll = checkboxes.some(checkbox=>!checkbox.checked);
+    checkboxes.forEach(checkbox=>{ checkbox.checked = shouldSelectAll; });
+    updateJiraSelectionUI();
+  });
+  applySelectedButton.addEventListener("click", applySelectedJiraIssues);
 
   function getJiraDescription(){
     const name = getJiraElement("basicName")?.value.trim() || "미입력";
@@ -5181,7 +5517,7 @@ init();
     const summary = jiraSummary.value.trim() || `[평가] ${name}${team ? " - " + team : ""}`;
 
     if(!projectKey){
-      setStatus("Jira 이슈 생성 실패: 프로젝트 키를 입력해 주세요.", "var(--danger)");
+      showJiraError("Jira 이슈 생성 실패\n프로젝트 키를 입력해 주세요.");
       jiraProjectKey.focus();
       getJiraElement("jiraIntegration")?.scrollIntoView({ behavior:"smooth", block:"center" });
       return;
@@ -5204,7 +5540,7 @@ init();
       showCreatedIssue(result.issueKey || "Jira", result.url || "");
       setStatus(`Jira 이슈 생성 완료: ${result.issueKey || summary}`, "var(--ok)");
     }catch(error){
-      setStatus(`Jira 이슈 생성 실패: ${errorMessage(error, "이슈 생성")}`, "var(--danger)");
+      showJiraError(`Jira 이슈 생성 실패\n${errorMessage(error, "이슈 생성")}`);
     }finally{
       createIssueButton.disabled = false;
       createIssueButton.textContent = originalLabel;
@@ -5219,6 +5555,8 @@ init();
     jiraSummary.value = "";
     emailInput.value = "";
     projectResults.replaceChildren();
+    loadedJiraIssues.clear();
+    selectionActions.style.display = "none";
     createResult.replaceChildren();
     updateAccountUI(null);
     setStatus("Jira 연동 설정과 계정 연결을 지웠습니다.", "var(--muted)");
@@ -5228,17 +5566,32 @@ init();
     const mapping = getMapping();
     if(mapping && mapping.email !== emailInput.value.trim()){
       localStorage.removeItem(jiraMappingKey);
+      loadedJiraIssues.clear();
+      projectResults.replaceChildren();
+      selectionActions.style.display = "none";
       updateAccountUI(null);
       setStatus("이메일이 변경되어 Jira 계정 연결이 해제되었습니다.", "var(--muted)");
     }
   });
 
-  closeAccountModalButton.addEventListener("click", closeAccountModal);
+  closeAccountModalButton.addEventListener("click", ()=>closeAccountModal(true));
   accountModal.addEventListener("click", (event)=>{
-    if(event.target === accountModal) closeAccountModal();
+    if(event.target === accountModal) closeAccountModal(true);
+  });
+  closeErrorModalButton.addEventListener("click", closeJiraError);
+  confirmErrorModalButton.addEventListener("click", closeJiraError);
+  errorModal.addEventListener("click", (event)=>{
+    if(event.target === errorModal) closeJiraError();
+  });
+  closeIntegrationModalButton.addEventListener("click", closeJiraIntegration);
+  integrationModal.addEventListener("click", (event)=>{
+    if(event.target === integrationModal) closeJiraIntegration();
   });
   document.addEventListener("keydown", (event)=>{
-    if(event.key === "Escape" && accountModal.style.display === "flex") closeAccountModal();
+    if(event.key !== "Escape") return;
+    if(errorModal.style.display === "flex") closeJiraError();
+    else if(accountModal.style.display === "flex") closeAccountModal(true);
+    else if(integrationModal.style.display === "flex") closeJiraIntegration();
   });
 
   loadJiraSettings();
