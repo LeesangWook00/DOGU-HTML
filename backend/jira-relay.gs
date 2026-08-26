@@ -51,14 +51,19 @@ function getJiraConfig_() {
   return cfg;
 }
 
-function jiraFetch_(path) {
+function jiraFetch_(path, options) {
   var cfg = getJiraConfig_();
   var authHeader = "Basic " + Utilities.base64Encode(cfg.email + ":" + cfg.apiToken);
-  var res = UrlFetchApp.fetch(cfg.baseUrl + path, {
-    method: "get",
+  var opts = {
+    method: (options && options.method) || "get",
     headers: { Authorization: authHeader, Accept: "application/json" },
     muteHttpExceptions: true
-  });
+  };
+  if (options && options.payload) {
+    opts.contentType = "application/json";
+    opts.payload = JSON.stringify(options.payload);
+  }
+  var res = UrlFetchApp.fetch(cfg.baseUrl + path, opts);
   var code = res.getResponseCode();
   if (code === 401 || code === 403) {
     throw new Error("jira_auth_failed");
@@ -87,13 +92,16 @@ function verifyJiraAccount(email) {
 }
 
 // action: getEmployeeProjects
+// 참고: Jira Cloud의 예전 GET /rest/api/3/search는 2025-10 이후 완전히 제거(410)되어
+// 새 엔드포인트 POST /rest/api/3/search/jql 을 사용합니다.
 function getEmployeeProjects(jiraAccountId) {
   if (!jiraAccountId) return { ok: false, error: "missing_account_id" };
 
   var jql = 'assignee = "' + jiraAccountId + '" ORDER BY updated DESC';
-  var path = "/rest/api/3/search?jql=" + encodeURIComponent(jql) +
-    "&fields=summary,status,project&maxResults=50";
-  var res = jiraFetch_(path);
+  var res = jiraFetch_("/rest/api/3/search/jql", {
+    method: "post",
+    payload: { jql: jql, fields: ["summary", "status", "project"], maxResults: 50 }
+  });
   if (res.code !== 200) return { ok: false, error: "jira_request_failed" };
 
   var cfg = getJiraConfig_();
