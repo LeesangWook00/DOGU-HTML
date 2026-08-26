@@ -2,6 +2,14 @@
 
 전용 서버 없이 **Google Apps Script 웹앱**으로 Jira API를 대신 호출하는 백엔드입니다. 설계 배경은 [`../JIRA-ACCOUNT-MAPPING.md`](../JIRA-ACCOUNT-MAPPING.md) 참고.
 
+## 배포된 웹앱 URL (프론트엔드 연동용)
+
+```
+https://script.google.com/macros/s/AKfycbxXLagAQGcfSEPxjgmi7EU-iTpUnHzyFpeWxfAox-zprgWosxt5L7v08a-jxMwrrN-_/exec
+```
+
+`verifyJiraAccount`, `getEmployeeProjects` 두 액션 모두 테스트 Jira 계정으로 정상 동작 확인 완료. 요청/응답 형식은 `../JIRA-ACCOUNT-MAPPING.md` 참고.
+
 ## 파일
 
 - `jira-relay.gs` — Apps Script에 그대로 붙여넣을 코드. `verifyJiraAccount`, `getEmployeeProjects` 두 액션 처리.
