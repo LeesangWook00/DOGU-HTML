@@ -448,6 +448,10 @@
             <label>소속/팀<span class="req">*</span></label>
             <input type="text" id="basicTeam" placeholder="예: 운영팀 / 플랫폼팀" />
           </div>
+          <div class="col-6">
+            <label for="jiraEmployeeEmail">사내 이메일 (Jira 계정 확인용)</label>
+            <input type="email" id="jiraEmployeeEmail" placeholder="예: hong@company.com" autocomplete="email" />
+          </div>
         </div>
         <div class="grid">
           <div class="col-6">
@@ -4869,15 +4873,19 @@ init();
     <div class="hint">Jira API 중계 서버가 연결을 확인한 뒤 Jira 작성 창을 엽니다. API 토큰은 이 페이지에 입력하지 않습니다.</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
       <button type="button" class="btn" id="btnJiraClearSettings">연동 설정 지우기</button>
+      <button type="button" class="btn" id="btnJiraVerifyAccount">지라 계정 확인</button>
+      <button type="button" class="btn primary" id="btnJiraLoadProjects" disabled>프로젝트 불러오기</button>
       <span class="hint" id="jiraIntegrationStatus" style="margin:8px 0 0;"></span>
     </div>
+    <div id="jiraAccountResult" class="hint" style="margin-top:10px;"></div>
+    <div id="jiraProjectResults" style="margin-top:10px;"></div>
   </div>
 </section>
 <script>
 (function(){
   const jiraSettingsKey = "dogu_jira_settings";
   const defaultJiraBaseUrl = "https://dogu-team-yogzwfx8.atlassian.net";
-  const defaultJiraRelayUrl = "https://script.google.com/macros/s/AKfycbx5zVunIj22oGufL0oftFSV5UFKG0aFwQuOAKVpnL4JnBS9y73QT4ua9rrJq1bCiISkGA/exec";
+  const defaultJiraRelayUrl = "https://script.google.com/macros/s/AKfycbxXLagAQGcfSEPxjgmi7EU-iTpUnHzyFpeWxfAox-zprgWosxt5L7v08a-jxMwrrN-_/exec";
   const defaultJiraProjectKey = "KAN";
   const getJiraElement = (id) => document.getElementById(id);
   const jiraBaseUrl = getJiraElement("jiraBaseUrl");
@@ -4968,6 +4976,173 @@ init();
 })();
 </script>
 <script>
+  const jiraMappingKey = "dogu_jira_account_mapping";
+  const mappingRelayUrl = "https://script.google.com/macros/s/AKfycbxXLagAQGcfSEPxjgmi7EU-iTpUnHzyFpeWxfAox-zprgWosxt5L7v08a-jxMwrrN-_/exec";
+  const emailInput = document.getElementById("jiraEmployeeEmail");
+  const verifyButton = document.getElementById("btnJiraVerifyAccount");
+  const loadProjectsButton = document.getElementById("btnJiraLoadProjects");
+  const accountResult = document.getElementById("jiraAccountResult");
+  const projectResults = document.getElementById("jiraProjectResults");
+  const status = document.getElementById("jiraIntegrationStatus");
+  if(!emailInput || !verifyButton || !loadProjectsButton) return;
+
+  function escapeText(value){
+    return String(value == null ? "" : value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function setStatus(message, color){
+    status.textContent = message;
+    status.style.color = color || "var(--muted)";
+  }
+
+  function getMapping(){
+    try{ return JSON.parse(localStorage.getItem(jiraMappingKey) || "null"); }
+    catch(_){ return null; }
+  }
+
+  function updateAccountUI(mapping){
+    loadProjectsButton.disabled = !mapping;
+    if(!mapping){
+      accountResult.textContent = "지라 계정이 연결되지 않았습니다.";
+      return;
+    }
+    accountResult.textContent = `지라 계정 연결됨: ${mapping.jiraDisplayName} (${mapping.email})`;
+  }
+
+  async function requestRelay(action, data){
+    const response = await fetch(mappingRelayUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action, ...data })
+    });
+    if(!response.ok) throw new Error("relay_request_failed");
+    const result = await response.json();
+    if(!result.ok) throw new Error(result.error || "jira_request_failed");
+    return result;
+  }
+
+  function chooseCandidate(candidates){
+    if(candidates.length === 1) return candidates[0];
+    const choices = candidates.map((candidate, index)=>
+      `${index + 1}. ${candidate.displayName} (${candidate.email || "이메일 비공개"})`
+    ).join("\n");
+    const selected = Number(prompt(`지라 계정을 선택하세요.\n\n${choices}`, "1")) - 1;
+    return Number.isInteger(selected) && candidates[selected] ? candidates[selected] : null;
+  }
+
+  verifyButton.addEventListener("click", async function(){
+    const email = emailInput.value.trim();
+    if(!email || !email.includes("@")){
+      setStatus("지라 계정 확인 실패: 올바른 이메일을 입력해 주세요.", "var(--danger)");
+      return;
+    }
+    verifyButton.disabled = true;
+    setStatus("지라 계정 확인 중...", "var(--muted)");
+    try{
+      const result = await requestRelay("verifyJiraAccount", { email });
+      if(!result.matched || !result.candidates.length){
+        localStorage.removeItem(jiraMappingKey);
+        updateAccountUI(null);
+        setStatus("지라 계정을 찾을 수 없습니다. HR에 문의하세요.", "var(--danger)");
+        return;
+      }
+      const candidate = chooseCandidate(result.candidates);
+      if(!candidate){
+        setStatus("지라 계정 선택을 취소했습니다.", "var(--muted)");
+        return;
+      }
+      const mapping = {
+        email,
+        jiraAccountId: candidate.jiraAccountId,
+        jiraDisplayName: candidate.displayName
+      };
+      localStorage.setItem(jiraMappingKey, JSON.stringify(mapping));
+      updateAccountUI(mapping);
+      setStatus("지라 계정 확인 완료", "var(--ok)");
+    }catch(error){
+      setStatus(`지라 계정 확인 실패: ${error.message === "jira_auth_failed" ? "Jira 인증 정보를 확인해 주세요." : "중계 서버에 연결할 수 없습니다."}`, "var(--danger)");
+    }finally{
+      verifyButton.disabled = false;
+    }
+  });
+
+  function applyIssueToProject(issue, index){
+    const title = document.querySelector(`#projectList input[data-field="title"][data-idx="${index}"]`);
+    const summary = document.querySelector(`#projectList textarea[data-field="summary"][data-idx="${index}"]`);
+    if(title){
+      title.value = `${issue.issueKey} - ${issue.summary || ""}`.trim();
+      title.dispatchEvent(new Event("input", { bubbles:true }));
+    }
+    if(summary){
+      summary.value = `상태: ${issue.status || "미정"}\nJira: ${issue.url || ""}`;
+      summary.dispatchEvent(new Event("input", { bubbles:true }));
+    }
+    setStatus(`${issue.issueKey} 이슈를 프로젝트/업무 ${index + 1}에 반영했습니다.`, "var(--ok)");
+  }
+
+  loadProjectsButton.addEventListener("click", async function(){
+    const mapping = getMapping();
+    if(!mapping){
+      setStatus("먼저 지라 계정을 확인해 주세요.", "var(--danger)");
+      return;
+    }
+    loadProjectsButton.disabled = true;
+    setStatus("담당 Jira 프로젝트를 불러오는 중...", "var(--muted)");
+    projectResults.innerHTML = "";
+    try{
+      const result = await requestRelay("getEmployeeProjects", { jiraAccountId: mapping.jiraAccountId });
+      if(!result.issues.length){
+        projectResults.textContent = "담당 Jira 프로젝트가 없습니다.";
+        setStatus("조회 완료: 담당 프로젝트 없음", "var(--muted)");
+        return;
+      }
+      const heading = document.createElement("div");
+      heading.className = "hint";
+      heading.textContent = "담당 Jira 업무를 선택하면 빈 프로젝트 입력란에 반영됩니다.";
+      projectResults.appendChild(heading);
+      result.issues.forEach(issue=>{
+        const row = document.createElement("div");
+        row.className = "row";
+        row.style.marginTop = "8px";
+        row.innerHTML = `<div><b>${escapeText(issue.issueKey)}</b> ${escapeText(issue.summary || "")}</div><div class="hint">상태: ${escapeText(issue.status || "미정")}</div>`;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "btn small primary";
+        button.textContent = "프로젝트에 반영";
+        button.style.marginTop = "8px";
+        button.addEventListener("click", ()=>{
+          const empty = Array.from(document.querySelectorAll('#projectList input[data-field="title"]'))
+            .find(input=>!input.value.trim());
+          const index = empty ? Number(empty.dataset.idx) : 0;
+          applyIssueToProject(issue, index);
+        });
+        row.appendChild(button);
+        projectResults.appendChild(row);
+      });
+      setStatus(`${result.issues.length}개의 Jira 업무를 불러왔습니다.`, "var(--ok)");
+    }catch(error){
+      setStatus(`프로젝트 조회 실패: ${error.message === "jira_auth_failed" ? "Jira 인증 정보를 확인해 주세요." : "중계 서버에 연결할 수 없습니다."}`, "var(--danger)");
+    }finally{
+      loadProjectsButton.disabled = !getMapping();
+    }
+  });
+
+  emailInput.addEventListener("input", function(){
+    const mapping = getMapping();
+    if(mapping && mapping.email !== emailInput.value.trim()){
+      localStorage.removeItem(jiraMappingKey);
+      updateAccountUI(null);
+    }
+  });
+
+  const savedMapping = getMapping();
+  if(savedMapping) emailInput.value = savedMapping.email || "";
+  updateAccountUI(savedMapping);
 (function(){
   const jiraButton = document.getElementById("btnJiraCreateIssue");
   if(!jiraButton) return;
