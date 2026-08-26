@@ -351,7 +351,7 @@
       <button class="btn" id="btnTopLocalLoad">임시저장 불러오기</button>
       <button class="btn" id="btnTopJsonImport">JSON 불러오기</button>
       <button class="btn primary" id="btnTopJsonExport">JSON 내보내기</button>
-      <button class="btn primary" id="btnJiraCreateIssue" type="button">Jira 연동하기</button>
+      <button class="btn primary" id="btnJiraCreateIssue" type="button">Jira 이슈 생성</button>
       <span id="jiraTopStatus" style="font-size:12px;color:#6b7280;align-self:center;"></span>
       <button class="btn" id="btnHrToggle" data-hr-only="1" type="button" onclick="try{openHrModal();}catch(e){alert(String(e));}">HR 설정</button>
       <span id="modeBadge" style="font-size:12px;color:#374151;margin-left:6px;align-self:center;">MODE: employee</span>
@@ -4844,19 +4844,11 @@ init();
     <div class="k">
       <div class="part"><span class="badge">Jira</span></div>
       <h2>Jira 연동</h2>
-      <p class="desc">버튼을 누르면 평가 정보를 담은 Jira 이슈 작성 화면이 열립니다.</p>
+      <p class="desc">Jira 중계 서버를 통해 담당 업무를 불러오거나 평가 이슈를 바로 생성합니다.</p>
     </div>
   </div>
   <div class="bd">
     <div class="grid">
-      <div class="col-6">
-        <label for="jiraBaseUrl">Jira 주소<span class="req">*</span></label>
-        <input type="url" id="jiraBaseUrl" placeholder="https://회사명.atlassian.net" autocomplete="url" />
-      </div>
-      <div class="col-6">
-        <label for="jiraRelayUrl">Jira API 중계 서버 URL<span class="req">*</span></label>
-        <input type="url" id="jiraRelayUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="url" />
-      </div>
       <div class="col-3">
         <label for="jiraProjectKey">프로젝트 키<span class="req">*</span></label>
         <input type="text" id="jiraProjectKey" placeholder="HR" autocomplete="off" />
@@ -4870,7 +4862,7 @@ init();
         <input type="text" id="jiraSummary" placeholder="비워두면 성명과 팀으로 자동 생성됩니다." autocomplete="off" />
       </div>
     </div>
-    <div class="hint">Jira API 중계 서버가 연결을 확인한 뒤 Jira 작성 창을 엽니다. API 토큰은 이 페이지에 입력하지 않습니다.</div>
+    <div class="hint">이슈는 새 창을 열지 않고 바로 생성됩니다. API 토큰은 이 페이지에 저장되지 않습니다.</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
       <button type="button" class="btn" id="btnJiraClearSettings">연동 설정 지우기</button>
       <button type="button" class="btn" id="btnJiraVerifyAccount">지라 계정 확인</button>
@@ -4879,125 +4871,107 @@ init();
     </div>
     <div id="jiraAccountResult" class="hint" style="margin-top:10px;"></div>
     <div id="jiraProjectResults" style="margin-top:10px;"></div>
+    <div id="jiraCreateResult" class="hint" style="margin-top:10px;" role="status" aria-live="polite"></div>
   </div>
 </section>
+<div class="modalBackdrop" id="jiraAccountModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="jiraAccountModalTitle" style="width:min(520px, 100%);">
+    <div class="modalHd">
+      <div>
+        <h3 id="jiraAccountModalTitle">Jira 계정 확인</h3>
+        <div class="hint" id="jiraAccountModalDescription" style="margin-top:6px;"></div>
+      </div>
+      <button type="button" class="btn" id="btnCloseJiraAccountModal">닫기</button>
+    </div>
+    <div class="modalBd" id="jiraAccountCandidates"></div>
+  </div>
+</div>
 <script>
 (function(){
+  "use strict";
+
   const jiraSettingsKey = "dogu_jira_settings";
-  const defaultJiraBaseUrl = "https://dogu-team-yogzwfx8.atlassian.net";
-  const defaultJiraRelayUrl = "https://script.google.com/macros/s/AKfycbxXLagAQGcfSEPxjgmi7EU-iTpUnHzyFpeWxfAox-zprgWosxt5L7v08a-jxMwrrN-_/exec";
+  const jiraMappingKey = "dogu_jira_account_mapping";
+  const jiraRelayUrl = "https://script.google.com/macros/s/AKfycbxXLagAQGcfSEPxjgmi7EU-iTpUnHzyFpeWxfAox-zprgWosxt5L7v08a-jxMwrrN-_/exec";
   const defaultJiraProjectKey = "KAN";
   const getJiraElement = (id) => document.getElementById(id);
-  const jiraBaseUrl = getJiraElement("jiraBaseUrl");
-  const jiraRelayUrl = getJiraElement("jiraRelayUrl");
+  const emailInput = getJiraElement("jiraEmployeeEmail");
+  const verifyButton = getJiraElement("btnJiraVerifyAccount");
+  const loadProjectsButton = getJiraElement("btnJiraLoadProjects");
+  const createIssueButton = getJiraElement("btnJiraCreateIssue");
+  const clearSettingsButton = getJiraElement("btnJiraClearSettings");
   const jiraProjectKey = getJiraElement("jiraProjectKey");
   const jiraIssueType = getJiraElement("jiraIssueType");
   const jiraSummary = getJiraElement("jiraSummary");
-  const jiraStatus = getJiraElement("jiraIntegrationStatus");
+  const accountResult = getJiraElement("jiraAccountResult");
+  const projectResults = getJiraElement("jiraProjectResults");
+  const createResult = getJiraElement("jiraCreateResult");
+  const status = getJiraElement("jiraIntegrationStatus");
+  const topStatus = getJiraElement("jiraTopStatus");
+  const accountModal = getJiraElement("jiraAccountModal");
+  const accountModalDescription = getJiraElement("jiraAccountModalDescription");
+  const accountCandidates = getJiraElement("jiraAccountCandidates");
+  const closeAccountModalButton = getJiraElement("btnCloseJiraAccountModal");
+
+  if(!emailInput || !verifyButton || !loadProjectsButton || !createIssueButton || !clearSettingsButton) return;
+
+  function setStatus(message, color){
+    const statusColor = color || "var(--muted)";
+    if(status){
+      status.textContent = message;
+      status.style.color = statusColor;
+    }
+    if(topStatus){
+      topStatus.textContent = message;
+      topStatus.style.color = statusColor;
+    }
+  }
+
+  function errorMessage(error, task){
+    const code = error && error.message;
+    if(code === "jira_auth_failed") return "Jira 인증 정보 또는 권한을 확인해 주세요.";
+    if(code === "missing_project_key") return "프로젝트 키를 입력해 주세요.";
+    if(code === "unknown_action") return "중계 서버에 이슈 생성 기능이 아직 배포되지 않았습니다.";
+    if(code === "jira_request_failed") return `Jira에서 ${task} 요청을 처리하지 못했습니다. 프로젝트 키와 권한을 확인해 주세요.`;
+    return "중계 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.";
+  }
+
+  async function requestRelay(action, data){
+    const controller = new AbortController();
+    const timeoutId = setTimeout(()=>controller.abort(), 20000);
+    try{
+      const response = await fetch(jiraRelayUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action, ...data }),
+        signal: controller.signal
+      });
+      if(!response.ok) throw new Error("relay_request_failed");
+      const result = await response.json();
+      if(!result || !result.ok) throw new Error((result && result.error) || "jira_request_failed");
+      return result;
+    }finally{
+      clearTimeout(timeoutId);
+    }
+  }
 
   function loadJiraSettings(){
     try{
       const settings = JSON.parse(localStorage.getItem(jiraSettingsKey) || "{}");
-      jiraBaseUrl.value = settings.baseUrl || defaultJiraBaseUrl;
-      jiraRelayUrl.value = settings.relayUrl || defaultJiraRelayUrl;
       jiraProjectKey.value = settings.projectKey || defaultJiraProjectKey;
       jiraIssueType.value = settings.issueType || "Task";
     }catch(_){
-      jiraStatus.textContent = "저장된 Jira 설정을 불러오지 못했습니다.";
+      jiraProjectKey.value = defaultJiraProjectKey;
+      jiraIssueType.value = "Task";
+      setStatus("저장된 Jira 설정을 불러오지 못해 기본값을 사용합니다.", "var(--muted)");
     }
   }
 
   function saveJiraSettings(){
     localStorage.setItem(jiraSettingsKey, JSON.stringify({
-      baseUrl: jiraBaseUrl.value.trim(),
-      relayUrl: jiraRelayUrl.value.trim(),
-      projectKey: jiraProjectKey.value.trim(),
+      projectKey: jiraProjectKey.value.trim().toUpperCase(),
       issueType: jiraIssueType.value.trim() || "Task"
     }));
-  }
-
-  function getJiraDescription(){
-    const name = document.getElementById("basicName")?.value.trim() || "미입력";
-    const team = document.getElementById("basicTeam")?.value.trim() || "미입력";
-    const comment = document.getElementById("reviewEmployeeComment")?.value.trim() || "미입력";
-    return [
-      "평가 시스템에서 생성된 Jira 이슈입니다.",
-      "",
-      "성명: " + name,
-      "소속/팀: " + team,
-      "",
-      "상반기 리뷰 종합 코멘트:",
-      comment
-    ].join("\n");
-  }
-
-  function openJiraCreateIssue(){
-    const baseUrl = jiraBaseUrl.value.trim().replace(/\/+$/, "");
-    const projectKey = jiraProjectKey.value.trim();
-    const issueType = jiraIssueType.value.trim() || "Task";
-    const name = document.getElementById("basicName")?.value.trim() || "평가";
-    const team = document.getElementById("basicTeam")?.value.trim() || "";
-    const summary = jiraSummary.value.trim() || `[평가] ${name}${team ? " - " + team : ""}`;
-
-    if(!baseUrl || !projectKey){
-      jiraStatus.textContent = "Jira 주소와 프로젝트 키를 입력해 주세요.";
-      jiraStatus.style.color = "var(--danger)";
-      return;
-    }
-
-    saveJiraSettings();
-    const query = new URLSearchParams({
-      pid: projectKey,
-      issuetype: issueType,
-      summary,
-      description: getJiraDescription()
-    });
-    const jiraWindow = window.open(baseUrl + "/secure/CreateIssue!default.jspa?" + query.toString(), "_blank", "noopener");
-    if(!jiraWindow){
-      jiraStatus.textContent = "팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.";
-      jiraStatus.style.color = "var(--danger)";
-      return;
-    }
-    jiraStatus.textContent = "Jira 연동 완료: 이슈 작성 화면을 열었습니다.";
-    jiraStatus.style.color = "var(--ok)";
-  }
-
-  getJiraElement("btnJiraCreateIssue").addEventListener("click", openJiraCreateIssue);
-  getJiraElement("btnJiraClearSettings").addEventListener("click", function(){
-    localStorage.removeItem(jiraSettingsKey);
-    jiraBaseUrl.value = "";
-    jiraRelayUrl.value = "";
-    jiraProjectKey.value = "";
-    jiraIssueType.value = "Task";
-    jiraStatus.textContent = "Jira 연동 설정을 지웠습니다.";
-    jiraStatus.style.color = "var(--muted)";
-  });
-  loadJiraSettings();
-})();
-</script>
-<script>
-  const jiraMappingKey = "dogu_jira_account_mapping";
-  const mappingRelayUrl = "https://script.google.com/macros/s/AKfycbxXLagAQGcfSEPxjgmi7EU-iTpUnHzyFpeWxfAox-zprgWosxt5L7v08a-jxMwrrN-_/exec";
-  const emailInput = document.getElementById("jiraEmployeeEmail");
-  const verifyButton = document.getElementById("btnJiraVerifyAccount");
-  const loadProjectsButton = document.getElementById("btnJiraLoadProjects");
-  const accountResult = document.getElementById("jiraAccountResult");
-  const projectResults = document.getElementById("jiraProjectResults");
-  const status = document.getElementById("jiraIntegrationStatus");
-  if(!emailInput || !verifyButton || !loadProjectsButton) return;
-
-  function escapeText(value){
-    return String(value == null ? "" : value)
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  function setStatus(message, color){
-    status.textContent = message;
-    status.style.color = color || "var(--muted)";
   }
 
   function getMapping(){
@@ -5011,61 +4985,83 @@ init();
       accountResult.textContent = "지라 계정이 연결되지 않았습니다.";
       return;
     }
-    accountResult.textContent = `지라 계정 연결됨: ${mapping.jiraDisplayName} (${mapping.email})`;
+    accountResult.textContent = `지라 연동됨: ${mapping.jiraDisplayName} (${mapping.email})`;
   }
 
-  async function requestRelay(action, data){
-    const response = await fetch(mappingRelayUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action, ...data })
+  function closeAccountModal(){
+    accountModal.style.display = "none";
+    accountModal.setAttribute("aria-hidden", "true");
+    accountCandidates.replaceChildren();
+  }
+
+  function connectCandidate(candidate, email){
+    const mapping = {
+      email,
+      jiraAccountId: candidate.jiraAccountId,
+      jiraDisplayName: candidate.displayName
+    };
+    localStorage.setItem(jiraMappingKey, JSON.stringify(mapping));
+    updateAccountUI(mapping);
+    closeAccountModal();
+    setStatus("지라 계정 확인 완료", "var(--ok)");
+  }
+
+  function openCandidateModal(candidates, email){
+    accountCandidates.replaceChildren();
+    accountModalDescription.textContent = candidates.length === 1
+      ? "검색된 계정이 본인이 맞는지 확인해 주세요."
+      : "검색된 계정 중 본인의 Jira 계정을 선택해 주세요.";
+
+    candidates.forEach(candidate=>{
+      const row = document.createElement("div");
+      row.className = "row";
+      row.style.marginBottom = "8px";
+
+      const label = document.createElement("div");
+      const name = document.createElement("b");
+      name.textContent = candidate.displayName || "이름 없음";
+      const detail = document.createElement("div");
+      detail.className = "hint";
+      detail.textContent = candidate.email || "이메일 비공개";
+      label.append(name, detail);
+
+      const selectButton = document.createElement("button");
+      selectButton.type = "button";
+      selectButton.className = "btn small primary";
+      selectButton.textContent = candidates.length === 1 ? "이 계정이 맞습니다" : "이 계정 선택";
+      selectButton.addEventListener("click", ()=>connectCandidate(candidate, email));
+      row.append(label, selectButton);
+      accountCandidates.appendChild(row);
     });
-    if(!response.ok) throw new Error("relay_request_failed");
-    const result = await response.json();
-    if(!result.ok) throw new Error(result.error || "jira_request_failed");
-    return result;
-  }
 
-  function chooseCandidate(candidates){
-    if(candidates.length === 1) return candidates[0];
-    const choices = candidates.map((candidate, index)=>
-      `${index + 1}. ${candidate.displayName} (${candidate.email || "이메일 비공개"})`
-    ).join("\n");
-    const selected = Number(prompt(`지라 계정을 선택하세요.\n\n${choices}`, "1")) - 1;
-    return Number.isInteger(selected) && candidates[selected] ? candidates[selected] : null;
+    accountModal.style.display = "flex";
+    accountModal.setAttribute("aria-hidden", "false");
+    accountCandidates.querySelector("button")?.focus();
   }
 
   verifyButton.addEventListener("click", async function(){
     const email = emailInput.value.trim();
-    if(!email || !email.includes("@")){
-      setStatus("지라 계정 확인 실패: 올바른 이메일을 입력해 주세요.", "var(--danger)");
+    if(!emailInput.checkValidity() || !email){
+      setStatus("지라 계정 확인 실패: 올바른 사내 이메일을 입력해 주세요.", "var(--danger)");
+      emailInput.reportValidity();
       return;
     }
+
     verifyButton.disabled = true;
     setStatus("지라 계정 확인 중...", "var(--muted)");
     try{
       const result = await requestRelay("verifyJiraAccount", { email });
-      if(!result.matched || !result.candidates.length){
+      const candidates = Array.isArray(result.candidates) ? result.candidates : [];
+      if(!result.matched || !candidates.length){
         localStorage.removeItem(jiraMappingKey);
         updateAccountUI(null);
         setStatus("지라 계정을 찾을 수 없습니다. HR에 문의하세요.", "var(--danger)");
         return;
       }
-      const candidate = chooseCandidate(result.candidates);
-      if(!candidate){
-        setStatus("지라 계정 선택을 취소했습니다.", "var(--muted)");
-        return;
-      }
-      const mapping = {
-        email,
-        jiraAccountId: candidate.jiraAccountId,
-        jiraDisplayName: candidate.displayName
-      };
-      localStorage.setItem(jiraMappingKey, JSON.stringify(mapping));
-      updateAccountUI(mapping);
-      setStatus("지라 계정 확인 완료", "var(--ok)");
+      openCandidateModal(candidates, email);
+      setStatus("검색된 Jira 계정을 확인해 주세요.", "var(--muted)");
     }catch(error){
-      setStatus(`지라 계정 확인 실패: ${error.message === "jira_auth_failed" ? "Jira 인증 정보를 확인해 주세요." : "중계 서버에 연결할 수 없습니다."}`, "var(--danger)");
+      setStatus(`지라 계정 확인 실패: ${errorMessage(error, "계정 확인")}`, "var(--danger)");
     }finally{
       verifyButton.disabled = false;
     }
@@ -5091,45 +5087,141 @@ init();
       setStatus("먼저 지라 계정을 확인해 주세요.", "var(--danger)");
       return;
     }
+
     loadProjectsButton.disabled = true;
     setStatus("담당 Jira 프로젝트를 불러오는 중...", "var(--muted)");
-    projectResults.innerHTML = "";
+    projectResults.replaceChildren();
     try{
       const result = await requestRelay("getEmployeeProjects", { jiraAccountId: mapping.jiraAccountId });
-      if(!result.issues.length){
+      const issues = Array.isArray(result.issues) ? result.issues : [];
+      if(!issues.length){
         projectResults.textContent = "담당 Jira 프로젝트가 없습니다.";
         setStatus("조회 완료: 담당 프로젝트 없음", "var(--muted)");
         return;
       }
+
       const heading = document.createElement("div");
       heading.className = "hint";
       heading.textContent = "담당 Jira 업무를 선택하면 빈 프로젝트 입력란에 반영됩니다.";
       projectResults.appendChild(heading);
-      result.issues.forEach(issue=>{
+      issues.forEach(issue=>{
         const row = document.createElement("div");
         row.className = "row";
         row.style.marginTop = "8px";
-        row.innerHTML = `<div><b>${escapeText(issue.issueKey)}</b> ${escapeText(issue.summary || "")}</div><div class="hint">상태: ${escapeText(issue.status || "미정")}</div>`;
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "btn small primary";
-        button.textContent = "프로젝트에 반영";
-        button.style.marginTop = "8px";
-        button.addEventListener("click", ()=>{
+
+        const issueInfo = document.createElement("div");
+        const issueTitle = document.createElement("div");
+        const issueKey = document.createElement("b");
+        issueKey.textContent = issue.issueKey || "키 없음";
+        issueTitle.append(issueKey, ` ${issue.summary || ""}`);
+        const issueStatus = document.createElement("div");
+        issueStatus.className = "hint";
+        issueStatus.textContent = `상태: ${issue.status || "미정"}`;
+        issueInfo.append(issueTitle, issueStatus);
+
+        const applyButton = document.createElement("button");
+        applyButton.type = "button";
+        applyButton.className = "btn small primary";
+        applyButton.textContent = "프로젝트에 반영";
+        applyButton.addEventListener("click", ()=>{
           const empty = Array.from(document.querySelectorAll('#projectList input[data-field="title"]'))
             .find(input=>!input.value.trim());
           const index = empty ? Number(empty.dataset.idx) : 0;
           applyIssueToProject(issue, index);
         });
-        row.appendChild(button);
+        row.append(issueInfo, applyButton);
         projectResults.appendChild(row);
       });
-      setStatus(`${result.issues.length}개의 Jira 업무를 불러왔습니다.`, "var(--ok)");
+      setStatus(`${issues.length}개의 Jira 업무를 불러왔습니다.`, "var(--ok)");
     }catch(error){
-      setStatus(`프로젝트 조회 실패: ${error.message === "jira_auth_failed" ? "Jira 인증 정보를 확인해 주세요." : "중계 서버에 연결할 수 없습니다."}`, "var(--danger)");
+      setStatus(`프로젝트 조회 실패: ${errorMessage(error, "프로젝트 조회")}`, "var(--danger)");
     }finally{
       loadProjectsButton.disabled = !getMapping();
     }
+  });
+
+  function getJiraDescription(){
+    const name = getJiraElement("basicName")?.value.trim() || "미입력";
+    const team = getJiraElement("basicTeam")?.value.trim() || "미입력";
+    const comment = getJiraElement("reviewEmployeeComment")?.value.trim() || "미입력";
+    return [
+      "평가 시스템에서 생성된 Jira 이슈입니다.",
+      "",
+      "성명: " + name,
+      "소속/팀: " + team,
+      "",
+      "상반기 리뷰 종합 코멘트:",
+      comment
+    ].join("\n");
+  }
+
+  function showCreatedIssue(issueKey, issueUrl){
+    createResult.replaceChildren();
+    const message = document.createTextNode(`${issueKey} 이슈가 생성되었습니다. `);
+    createResult.appendChild(message);
+    try{
+      const url = new URL(issueUrl);
+      if(url.protocol !== "https:") throw new Error("invalid_protocol");
+      const link = document.createElement("a");
+      link.href = url.href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "생성된 이슈 보기";
+      createResult.appendChild(link);
+    }catch(_){
+      // URL이 없어도 생성 성공 상태와 이슈 키는 표시합니다.
+    }
+  }
+
+  createIssueButton.addEventListener("click", async function(){
+    const projectKey = jiraProjectKey.value.trim().toUpperCase();
+    const issueType = jiraIssueType.value.trim() || "Task";
+    const name = getJiraElement("basicName")?.value.trim() || "평가";
+    const team = getJiraElement("basicTeam")?.value.trim() || "";
+    const summary = jiraSummary.value.trim() || `[평가] ${name}${team ? " - " + team : ""}`;
+
+    if(!projectKey){
+      setStatus("Jira 이슈 생성 실패: 프로젝트 키를 입력해 주세요.", "var(--danger)");
+      jiraProjectKey.focus();
+      getJiraElement("jiraIntegration")?.scrollIntoView({ behavior:"smooth", block:"center" });
+      return;
+    }
+
+    jiraProjectKey.value = projectKey;
+    saveJiraSettings();
+    createResult.replaceChildren();
+    createIssueButton.disabled = true;
+    const originalLabel = createIssueButton.textContent;
+    createIssueButton.textContent = "Jira 이슈 생성 중...";
+    setStatus("Jira 이슈를 생성하는 중...", "var(--muted)");
+    try{
+      const result = await requestRelay("createIssue", {
+        projectKey,
+        issueType,
+        summary,
+        description: getJiraDescription()
+      });
+      showCreatedIssue(result.issueKey || "Jira", result.url || "");
+      setStatus(`Jira 이슈 생성 완료: ${result.issueKey || summary}`, "var(--ok)");
+    }catch(error){
+      setStatus(`Jira 이슈 생성 실패: ${errorMessage(error, "이슈 생성")}`, "var(--danger)");
+    }finally{
+      createIssueButton.disabled = false;
+      createIssueButton.textContent = originalLabel;
+    }
+  });
+
+  clearSettingsButton.addEventListener("click", function(){
+    localStorage.removeItem(jiraSettingsKey);
+    localStorage.removeItem(jiraMappingKey);
+    jiraProjectKey.value = defaultJiraProjectKey;
+    jiraIssueType.value = "Task";
+    jiraSummary.value = "";
+    emailInput.value = "";
+    projectResults.replaceChildren();
+    createResult.replaceChildren();
+    updateAccountUI(null);
+    setStatus("Jira 연동 설정과 계정 연결을 지웠습니다.", "var(--muted)");
   });
 
   emailInput.addEventListener("input", function(){
@@ -5137,58 +5229,22 @@ init();
     if(mapping && mapping.email !== emailInput.value.trim()){
       localStorage.removeItem(jiraMappingKey);
       updateAccountUI(null);
+      setStatus("이메일이 변경되어 Jira 계정 연결이 해제되었습니다.", "var(--muted)");
     }
   });
 
+  closeAccountModalButton.addEventListener("click", closeAccountModal);
+  accountModal.addEventListener("click", (event)=>{
+    if(event.target === accountModal) closeAccountModal();
+  });
+  document.addEventListener("keydown", (event)=>{
+    if(event.key === "Escape" && accountModal.style.display === "flex") closeAccountModal();
+  });
+
+  loadJiraSettings();
   const savedMapping = getMapping();
   if(savedMapping) emailInput.value = savedMapping.email || "";
   updateAccountUI(savedMapping);
-(function(){
-  const jiraButton = document.getElementById("btnJiraCreateIssue");
-  if(!jiraButton) return;
-
-  jiraButton.addEventListener("click", async function(e){
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-
-    const baseUrl = (document.getElementById("jiraBaseUrl")?.value || "").trim().replace(/\/+$/, "");
-    const relayUrl = (document.getElementById("jiraRelayUrl")?.value || "").trim().replace(/\/+$/, "");
-    const projectKey = (document.getElementById("jiraProjectKey")?.value || "").trim();
-    const issueType = (document.getElementById("jiraIssueType")?.value || "Task").trim() || "Task";
-    const name = (document.getElementById("basicName")?.value || "평가").trim() || "평가";
-    const team = (document.getElementById("basicTeam")?.value || "").trim();
-    const summary = (document.getElementById("jiraSummary")?.value || "").trim()
-      || `[평가] ${name}${team ? " - " + team : ""}`;
-
-    if(!baseUrl || !relayUrl || !projectKey){
-      alert("Jira 연결 실패\n\nJira 주소, Jira API 중계 서버 URL 또는 프로젝트 키가 없습니다.");
-      return;
-    }
-
-    let jiraUrl;
-    try{
-      const jira = new URL(baseUrl);
-      new URL(relayUrl);
-      if(jira.protocol !== "https:") throw new Error("HTTPS required");
-      jiraUrl = jira.origin + "/secure/CreateIssue!default.jspa?" + new URLSearchParams({
-        pid: projectKey,
-        issuetype: issueType,
-        summary
-      }).toString();
-    }catch(_){
-      alert("Jira 연결 실패\n\nJira 주소 또는 중계 서버 URL이 올바르지 않습니다.");
-      return;
-    }
-
-    const jiraWindow = window.open(jiraUrl, "_blank");
-    if(!jiraWindow){
-      alert("Jira 연결 실패\n\nJira 창을 열 수 없습니다. 브라우저의 팝업 차단을 해제해 주세요.");
-      return;
-    }
-
-    alert("Jira 연결 완료\n\n새 창에서 Jira 로그인과 이슈 생성을 진행해 주세요.");
-  }, true);
 })();
 </script>
 </body>
