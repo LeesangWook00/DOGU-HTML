@@ -10,9 +10,11 @@ https://script.google.com/macros/s/AKfycbxXLagAQGcfSEPxjgmi7EU-iTpUnHzyFpeWxfAox
 
 `verifyJiraAccount`, `getEmployeeProjects` 두 액션 모두 테스트 Jira 계정으로 정상 동작 확인 완료. 요청/응답 형식은 `../JIRA-ACCOUNT-MAPPING.md` 참고.
 
+`createIssue` 액션은 코드 추가 완료, **재배포 및 curl 테스트 필요** (아래 6번 참고).
+
 ## 파일
 
-- `jira-relay.gs` — Apps Script에 그대로 붙여넣을 코드. `verifyJiraAccount`, `getEmployeeProjects` 두 액션 처리.
+- `jira-relay.gs` — Apps Script에 그대로 붙여넣을 코드. `verifyJiraAccount`, `getEmployeeProjects`, `createIssue` 세 액션 처리.
 
 ## 데모까지 준비 순서
 
@@ -75,7 +77,21 @@ curl -X POST "<웹앱 URL>" \
   -d '{"action":"getEmployeeProjects","jiraAccountId":"위에서 나온 accountId"}'
 ```
 
-이 두 curl 테스트가 정상 응답을 주면 백엔드는 데모 준비 완료 상태입니다.
+세 번째 액션(`createIssue`)도 확인합니다. `projectKey`, `summary`는 필수이고, `issueType`을 생략하면 `Task`로 처리됩니다.
+
+```bash
+curl -X POST "<웹앱 URL>" \
+  -H "Content-Type: text/plain;charset=utf-8" \
+  -d '{"action":"createIssue","projectKey":"HR","issueType":"Task","summary":"테스트 이슈","description":"curl 테스트로 생성"}'
+```
+
+정상이면 아래처럼 생성된 이슈 정보가 옵니다.
+
+```json
+{ "ok": true, "issueKey": "HR-124", "url": "https://회사명.atlassian.net/browse/HR-124" }
+```
+
+이 세 curl 테스트가 정상 응답을 주면 백엔드는 데모 준비 완료 상태입니다.
 
 ## 프론트엔드 연동 참고 (fetch 예시)
 
@@ -90,7 +106,18 @@ async function verifyJiraAccount(email) {
   });
   return res.json();
 }
+
+async function createIssue({ projectKey, issueType, summary, description }) {
+  const res = await fetch(WEBAPP_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ action: "createIssue", projectKey, issueType, summary, description })
+  });
+  return res.json(); // 성공 시 { ok: true, issueKey, url }
+}
 ```
+
+`description`은 평문 문자열로 보내면 됩니다. Jira REST API v3가 요구하는 Atlassian Document Format 변환은 서버(`jira-relay.gs`)가 처리합니다.
 
 응답/에러 형식은 `../JIRA-ACCOUNT-MAPPING.md`의 API 설계 섹션을 따릅니다.
 

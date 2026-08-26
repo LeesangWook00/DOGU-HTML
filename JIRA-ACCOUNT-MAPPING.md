@@ -123,6 +123,34 @@ Apps Script 웹앱은 URL이 하나이므로, REST 경로 대신 **요청 본문
 }
 ```
 
+### 3. 이슈 생성 (구현 완료, 프론트엔드 연동 전)
+
+이 문서의 매핑 확인 범위 밖이지만, 같은 Apps Script 웹앱에 추가된 액션이라 형식을 기록해둡니다. 상세 curl/fetch 예시는 [`backend/README.md`](backend/README.md) 참고.
+
+요청
+```json
+{
+  "action": "createIssue",
+  "projectKey": "HR",
+  "issueType": "Task",
+  "summary": "[평가] 이동수",
+  "description": "평가 시스템에서 생성된 Jira 이슈입니다."
+}
+```
+
+응답 (성공)
+```json
+{
+  "ok": true,
+  "issueKey": "HR-124",
+  "url": "https://회사명.atlassian.net/browse/HR-124"
+}
+```
+
+`projectKey`, `summary`는 필수이며 `issueType`을 생략하면 `Task`로 처리됩니다. `description`은 평문 문자열로 보내면 서버가 Jira REST API v3가 요구하는 Atlassian Document Format으로 변환합니다.
+
+> 프론트엔드는 아직 이 액션을 호출하지 않고, 기존 `secure/CreateIssue!default.jspa` 팝업 URL 방식을 사용 중입니다. 이 팝업 방식은 최신 Jira Cloud에서 이슈 생성 폼이 정상적으로 뜨지 않는 문제가 확인되어, 프론트엔드가 이 `createIssue` 액션 호출로 전환하는 작업이 남아 있습니다.
+
 ## 프론트엔드가 구현할 부분
 
 - DOGU 기본정보 영역에 **사내 이메일 입력 칸** 추가 (성명 옆).

@@ -22,6 +22,8 @@ function doPost(e) {
       result = verifyJiraAccount(body.email);
     } else if (action === "getEmployeeProjects") {
       result = getEmployeeProjects(body.jiraAccountId);
+    } else if (action === "createIssue") {
+      result = createIssue(body);
     } else {
       result = { ok: false, error: "unknown_action" };
     }
@@ -116,4 +118,50 @@ function getEmployeeProjects(jiraAccountId) {
   });
 
   return { ok: true, issues: issues };
+}
+
+// action: createIssue
+// 요청 body 예: { action: "createIssue", projectKey: "HR", issueType: "Task", summary: "...", description: "..." }
+function createIssue(body) {
+  var projectKey = body && body.projectKey;
+  var summary = body && body.summary;
+  if (!projectKey) return { ok: false, error: "missing_project_key" };
+  if (!summary) return { ok: false, error: "missing_summary" };
+
+  var issueType = (body.issueType || "Task").trim() || "Task";
+  var payload = {
+    fields: {
+      project: { key: projectKey },
+      issuetype: { name: issueType },
+      summary: summary,
+      description: textToAdf_(body.description || "")
+    }
+  };
+
+  var res = jiraFetch_("/rest/api/3/issue", { method: "post", payload: payload });
+  if (res.code !== 201) {
+    return { ok: false, error: "jira_request_failed", status: res.code, details: res.body };
+  }
+
+  var cfg = getJiraConfig_();
+  return {
+    ok: true,
+    issueKey: res.body.key,
+    url: cfg.baseUrl + "/browse/" + res.body.key
+  };
+}
+
+// 평문 텍스트를 Jira REST API v3가 요구하는 Atlassian Document Format으로 변환
+function textToAdf_(text) {
+  var lines = String(text || "").split("\n");
+  var content = lines.map(function (line) {
+    return {
+      type: "paragraph",
+      content: line ? [{ type: "text", text: line }] : []
+    };
+  });
+  if (content.length === 0) {
+    content = [{ type: "paragraph", content: [] }];
+  }
+  return { type: "doc", version: 1, content: content };
 }
