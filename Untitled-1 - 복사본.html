@@ -4849,6 +4849,10 @@ init();
         <label for="jiraBaseUrl">Jira 주소<span class="req">*</span></label>
         <input type="url" id="jiraBaseUrl" placeholder="https://회사명.atlassian.net" autocomplete="url" />
       </div>
+      <div class="col-6">
+        <label for="jiraRelayUrl">Jira API 중계 서버 URL<span class="req">*</span></label>
+        <input type="url" id="jiraRelayUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="url" />
+      </div>
       <div class="col-3">
         <label for="jiraProjectKey">프로젝트 키<span class="req">*</span></label>
         <input type="text" id="jiraProjectKey" placeholder="HR" autocomplete="off" />
@@ -4862,7 +4866,7 @@ init();
         <input type="text" id="jiraSummary" placeholder="비워두면 성명과 팀으로 자동 생성됩니다." autocomplete="off" />
       </div>
     </div>
-    <div class="hint">Jira 로그인은 Jira 화면에서 진행되며, 이 페이지에는 비밀번호나 API 토큰을 입력하지 않습니다.</div>
+    <div class="hint">Jira API 중계 서버가 연결을 확인한 뒤 Jira 작성 창을 엽니다. API 토큰은 이 페이지에 입력하지 않습니다.</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
       <button type="button" class="btn" id="btnJiraClearSettings">연동 설정 지우기</button>
       <span class="hint" id="jiraIntegrationStatus" style="margin:8px 0 0;"></span>
@@ -4872,8 +4876,12 @@ init();
 <script>
 (function(){
   const jiraSettingsKey = "dogu_jira_settings";
+  const defaultJiraBaseUrl = "https://dogu-team-yogzwfx8.atlassian.net";
+  const defaultJiraRelayUrl = "https://script.google.com/macros/s/AKfycbx5zVunIj22oGufL0oftFSV5UFKG0aFwQuOAKVpnL4JnBS9y73QT4ua9rrJq1bCiISkGA/exec";
+  const defaultJiraProjectKey = "KAN";
   const getJiraElement = (id) => document.getElementById(id);
   const jiraBaseUrl = getJiraElement("jiraBaseUrl");
+  const jiraRelayUrl = getJiraElement("jiraRelayUrl");
   const jiraProjectKey = getJiraElement("jiraProjectKey");
   const jiraIssueType = getJiraElement("jiraIssueType");
   const jiraSummary = getJiraElement("jiraSummary");
@@ -4882,8 +4890,9 @@ init();
   function loadJiraSettings(){
     try{
       const settings = JSON.parse(localStorage.getItem(jiraSettingsKey) || "{}");
-      jiraBaseUrl.value = settings.baseUrl || "";
-      jiraProjectKey.value = settings.projectKey || "";
+      jiraBaseUrl.value = settings.baseUrl || defaultJiraBaseUrl;
+      jiraRelayUrl.value = settings.relayUrl || defaultJiraRelayUrl;
+      jiraProjectKey.value = settings.projectKey || defaultJiraProjectKey;
       jiraIssueType.value = settings.issueType || "Task";
     }catch(_){
       jiraStatus.textContent = "저장된 Jira 설정을 불러오지 못했습니다.";
@@ -4893,6 +4902,7 @@ init();
   function saveJiraSettings(){
     localStorage.setItem(jiraSettingsKey, JSON.stringify({
       baseUrl: jiraBaseUrl.value.trim(),
+      relayUrl: jiraRelayUrl.value.trim(),
       projectKey: jiraProjectKey.value.trim(),
       issueType: jiraIssueType.value.trim() || "Task"
     }));
@@ -4948,6 +4958,7 @@ init();
   getJiraElement("btnJiraClearSettings").addEventListener("click", function(){
     localStorage.removeItem(jiraSettingsKey);
     jiraBaseUrl.value = "";
+    jiraRelayUrl.value = "";
     jiraProjectKey.value = "";
     jiraIssueType.value = "Task";
     jiraStatus.textContent = "Jira 연동 설정을 지웠습니다.";
@@ -4961,12 +4972,13 @@ init();
   const jiraButton = document.getElementById("btnJiraCreateIssue");
   if(!jiraButton) return;
 
-  jiraButton.addEventListener("click", function(e){
+  jiraButton.addEventListener("click", async function(e){
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
 
     const baseUrl = (document.getElementById("jiraBaseUrl")?.value || "").trim().replace(/\/+$/, "");
+    const relayUrl = (document.getElementById("jiraRelayUrl")?.value || "").trim().replace(/\/+$/, "");
     const projectKey = (document.getElementById("jiraProjectKey")?.value || "").trim();
     const issueType = (document.getElementById("jiraIssueType")?.value || "Task").trim() || "Task";
     const name = (document.getElementById("basicName")?.value || "평가").trim() || "평가";
@@ -4974,30 +4986,32 @@ init();
     const summary = (document.getElementById("jiraSummary")?.value || "").trim()
       || `[평가] ${name}${team ? " - " + team : ""}`;
 
-    if(!baseUrl || !projectKey){
-      alert("Jira 연결 실패\n\nJira API 주소 또는 프로젝트 키가 없습니다.");
+    if(!baseUrl || !relayUrl || !projectKey){
+      alert("Jira 연결 실패\n\nJira 주소, Jira API 중계 서버 URL 또는 프로젝트 키가 없습니다.");
       return;
     }
 
     let jiraUrl;
     try{
-      const parsed = new URL(baseUrl);
-      if(parsed.protocol !== "https:") throw new Error("HTTPS required");
-      jiraUrl = parsed.origin + "/secure/CreateIssue!default.jspa?" + new URLSearchParams({
+      const jira = new URL(baseUrl);
+      new URL(relayUrl);
+      if(jira.protocol !== "https:") throw new Error("HTTPS required");
+      jiraUrl = jira.origin + "/secure/CreateIssue!default.jspa?" + new URLSearchParams({
         pid: projectKey,
         issuetype: issueType,
         summary
       }).toString();
     }catch(_){
-      alert("Jira 연결 실패\n\n올바른 HTTPS Jira API 주소가 아닙니다.");
+      alert("Jira 연결 실패\n\nJira 주소 또는 중계 서버 URL이 올바르지 않습니다.");
       return;
     }
 
-    const jiraWindow = window.open(jiraUrl, "_blank", "noopener");
+    const jiraWindow = window.open(jiraUrl, "_blank");
     if(!jiraWindow){
-      alert("Jira 연결 실패\n\nJira API 연결 창을 열 수 없습니다. 브라우저의 팝업 차단을 해제해 주세요.");
+      alert("Jira 연결 실패\n\nJira 창을 열 수 없습니다. 브라우저의 팝업 차단을 해제해 주세요.");
       return;
     }
+
     alert("Jira 연결 완료\n\n새 창에서 Jira 로그인과 이슈 생성을 진행해 주세요.");
   }, true);
 })();
