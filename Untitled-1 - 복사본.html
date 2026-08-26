@@ -352,6 +352,7 @@
       <button class="btn" id="btnTopJsonImport">JSON 불러오기</button>
       <button class="btn primary" id="btnTopJsonExport">JSON 내보내기</button>
       <button class="btn primary" id="btnJiraCreateIssue" type="button">Jira 연동하기</button>
+      <span id="jiraTopStatus" style="font-size:12px;color:#6b7280;align-self:center;"></span>
       <button class="btn" id="btnHrToggle" data-hr-only="1" type="button" onclick="try{openHrModal();}catch(e){alert(String(e));}">HR 설정</button>
       <span id="modeBadge" style="font-size:12px;color:#374151;margin-left:6px;align-self:center;">MODE: employee</span>
       <button class="btn danger" id="btnTopReset">리셋(초기화)</button>
@@ -4953,6 +4954,52 @@ init();
     jiraStatus.style.color = "var(--muted)";
   });
   loadJiraSettings();
+})();
+</script>
+<script>
+(function(){
+  const jiraButton = document.getElementById("btnJiraCreateIssue");
+  if(!jiraButton) return;
+
+  jiraButton.addEventListener("click", function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    const baseUrl = (document.getElementById("jiraBaseUrl")?.value || "").trim().replace(/\/+$/, "");
+    const projectKey = (document.getElementById("jiraProjectKey")?.value || "").trim();
+    const issueType = (document.getElementById("jiraIssueType")?.value || "Task").trim() || "Task";
+    const name = (document.getElementById("basicName")?.value || "평가").trim() || "평가";
+    const team = (document.getElementById("basicTeam")?.value || "").trim();
+    const summary = (document.getElementById("jiraSummary")?.value || "").trim()
+      || `[평가] ${name}${team ? " - " + team : ""}`;
+
+    if(!baseUrl || !projectKey){
+      alert("Jira 연결 실패\n\nJira API 주소 또는 프로젝트 키가 없습니다.");
+      return;
+    }
+
+    let jiraUrl;
+    try{
+      const parsed = new URL(baseUrl);
+      if(parsed.protocol !== "https:") throw new Error("HTTPS required");
+      jiraUrl = parsed.origin + "/secure/CreateIssue!default.jspa?" + new URLSearchParams({
+        pid: projectKey,
+        issuetype: issueType,
+        summary
+      }).toString();
+    }catch(_){
+      alert("Jira 연결 실패\n\n올바른 HTTPS Jira API 주소가 아닙니다.");
+      return;
+    }
+
+    const jiraWindow = window.open(jiraUrl, "_blank", "noopener");
+    if(!jiraWindow){
+      alert("Jira 연결 실패\n\nJira API 연결 창을 열 수 없습니다. 브라우저의 팝업 차단을 해제해 주세요.");
+      return;
+    }
+    alert("Jira 연결 완료\n\n새 창에서 Jira 로그인과 이슈 생성을 진행해 주세요.");
+  }, true);
 })();
 </script>
 </body>
